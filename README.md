@@ -36,11 +36,50 @@ Rail transfers are modelled as walk links: Doroteo Jose-Recto, EDSA-Taft Avenue,
 and the shared Araneta Center-Cubao node (LRT-2/MRT-3). Common names like
 "Cubao", "MOA", "NAIA", "Shaw", "UP" resolve to the right station.
 
-## What runs locally
+## Hackathon submission (App Builders PH 2026 -- Local AI)
 
-Everything: parsing, routing, the LLM (LM Studio on localhost), and
-text-to-speech (the browser's built-in speech synthesis). Nothing requires
-internet. No external images, fonts, or CDNs.
+**Short description:** A Taglish commute assistant for Metro Manila that runs
+on the user's own device. A local LLM understands free-form questions; a
+deterministic router picks the route; nothing needs the internet.
+
+**Why does this product benefit from running AI locally?**
+- **Works with no signal or data.** Commuters lose signal underground, in packed
+  stations, and during floods/typhoons, and many ride without mobile data.
+- **Private.** Where you go every day is sensitive; trip questions never leave
+  the device.
+- **Free and fast.** No per-query API cost or network round-trip; a 2B model
+  runs on an ordinary laptop.
+- **Safe.** The model only interprets and rephrases. Routes come from the
+  deterministic router, a faithfulness check rejects rephrasings that change
+  the route, and fares are never invented.
+
+### What runs locally
+| Component | Where it runs |
+|---|---|
+| Query understanding (Taglish -> origin/destination/preference/avoid JSON) | Gemma-2-2b via LM Studio on `localhost:1234` |
+| Answer rephrasing + faithfulness check | Gemma-2-2b via LM Studio, checked in `llm.py` |
+| Route search (Dijkstra over `routes.json`) | Python, `router.py` |
+| Rules-based fallback parser | Python, `router.py` |
+| Text-to-speech | Browser `speechSynthesis` (use an installed OS voice) |
+| QR code generation | `qrcode` + Pillow |
+| UI | Streamlit served on `localhost:8501` (usage stats disabled in `.streamlit/config.toml`) |
+
+### What requires internet
+- One-time setup only: `pip install`, downloading LM Studio and the model.
+- Optional: the WhatsApp share button opens `wa.me`.
+- Some browser voices (e.g. Chrome's "Google ..." voices) are cloud-backed;
+  pick a local OS voice for fully offline speech.
+
+### Disclosures
+- **Models:** Gemma-2-2b (Google, open weights), run through LM Studio.
+- **Technologies/frameworks:** Python, Streamlit, Requests, qrcode, Pillow,
+  pytest, LM Studio (OpenAI-compatible local server).
+- **APIs and cloud services:** none at runtime.
+- **Data:** station lists for LRT-1, LRT-2, MRT-3 and EDSA Carousel compiled
+  from public line information; jeepney/UV routes are an unverified starter set.
+- **Existing code and assets:** _fill in what existed before Build Day, if anything._
+- **AI development tools:** Devin (Cognition) -- debugging, router rewrite,
+  station data, UI redesign, tests.
 
 ## Run
 
