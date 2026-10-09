@@ -130,7 +130,8 @@ def phrase_itinerary(facts, url=DEFAULT_URL, model=DEFAULT_MODEL, timeout=TIMEOU
     """Rephrase fixed facts in friendly Taglish. Returns text or None."""
     system = ("You are Paano Pumunta AI, a friendly Metro Manila commute guide. Rewrite the ITINERARY "
               "below in short, friendly Taglish (max 5 sentences). Use ONLY facts from the itinerary. "
-              "Never add routes, stops or times. Keep every place name exactly. "
+              "Never add routes, stops or times. Keep every route name and place name exactly as written, "
+              "and use the word 'lipat' for transfers. "
               "Never mention fares or prices -- this app does not include fare information. "
               "Say that times are rough estimates.")
     # Gemma's chat template rejects the "system" role, so send one user message
@@ -152,15 +153,34 @@ def _squash(s):
     return re.sub(r"[\W_]+", "", s.lower())
 
 
+_VEHICLE_WORDS = re.compile(r"\b(jeepney|jeep|uv express|uv|bus)\b", re.I)
+_FARE_OUTPUT = re.compile(r"₱|\bphp\b|\bpesos?\b|\bpiso\b", re.I)
+_TRANSFER_WORDS = ("lipat", "transfer", "palit")
+
+
+def _route_variants(route):
+    """'Cubao-Divisoria Jeep' also matches 'jeep na Cubao-Divisoria'."""
+    return {_squash(route), _squash(_VEHICLE_WORDS.sub("", route))} - {""}
+
+
+def faithfulness_problem(text, itinerary):
+    """Why a rephrase can't be shown, or None if it is faithful."""
+    if not text:
+        return "empty reply"
+    t, st = text.lower(), _squash(text)
+    for leg in itinerary["legs"]:
+        if leg["type"] != "Walk" and not any(v in st for v in _route_variants(leg["route"])):
+            return f"left out {leg['route']}"
+    if itinerary["transfers"] > 0 and not any(w in t for w in _TRANSFER_WORDS):
+        return "did not mention the transfer"
+    if _FARE_OUTPUT.search(text):
+        return "mentioned a fare"
+    return None
+
+
 def phrasing_is_faithful(text, itinerary):
-    """The rephrase must name every ride's route and mention transfers."""
-    t = text.lower()
-    st = _squash(text)
-    if not all(_squash(l["route"]) in st for l in itinerary["legs"] if l["type"] != "Walk"):
-        return False
-    if itinerary["transfers"] > 0 and "lipat" not in t and "transfer" not in t:
-        return False
-    return True
+    """The rephrase must name every ride's route, mention transfers, and never state fares."""
+    return faithfulness_problem(text, itinerary) is None
 
 
 def contains_fare_question(text):
