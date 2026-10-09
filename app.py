@@ -202,20 +202,24 @@ def answer(prompt):
         dest = dest or ss.last_trip["destination"]
 
     # rules-based parser fills whatever the model missed
-    q = router.parse_query(prompt)
+    q = router.parse_query(prompt) or {}
+    q_avoid = q.get("avoid") or []
+    if isinstance(q_avoid, str):
+        q_avoid = [q_avoid]
+    q_pref = q.get("preference")
     if not origin or not dest:
-        if q["line"] and not (q["origin"] and q["dest"]) and not origin and not dest:
+        if q.get("line") and not (q.get("origin") and q.get("dest")) and not origin and not dest:
             r = router.line_info(q["line"])
             if r:
                 stops = ", ".join(r["stops"])
                 return f"Ito ang mga hinto ng {r['name']}: {stops}.", {"line": r}, interp
-        origin = origin or q["origin"]
-        dest = dest or q["dest"]
+        origin = origin or q.get("origin")
+        dest = dest or q.get("dest")
     if not result:
-        preference = q["preference"] or preference
-        avoid = q["avoid"]
+        preference = q_pref or preference
+        avoid = q_avoid
         # rules-only follow-up: "paano kung walang MRT?" with no places named
-        if not origin and not dest and (q["avoid"] or q["preference"]) and ss.last_trip:
+        if not origin and not dest and (q_avoid or q_pref) and ss.last_trip:
             origin, dest = ss.last_trip["origin"], ss.last_trip["destination"]
 
     fare_q = contains_fare_question(prompt)
