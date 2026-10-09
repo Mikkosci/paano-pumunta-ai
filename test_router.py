@@ -161,9 +161,38 @@ def test_avoid(router):
 
 
 def test_parallel_routes_kept(real_router):
-    # Carousel North and South share edges; the graph must keep both
-    routes = {r["name"] for _, r in real_router.adj["Shaw Blvd"]}
-    assert {"EDSA Carousel North", "EDSA Carousel South"} <= routes
+    # LRT-2 and MRT-3 share the Araneta Center-Cubao node; both must be kept
+    routes = {r["name"] for _, r in real_router.adj["Araneta Center-Cubao"]}
+    assert {"LRT-2", "MRT-3"} <= routes
+
+
+def test_rail_lines_complete(real_router):
+    counts = {r["name"]: len(r["stops"]) for r in real_router.routes}
+    assert counts["LRT-1"] == 25 and counts["LRT-2"] == 13 and counts["MRT-3"] == 13
+
+
+def test_verified_routes_preferred(real_router):
+    opts = real_router.plan("Monumento", "Mall of Asia")
+    assert all(not o["unverified"] for o in opts)
+    assert [l["route"] for l in opts[0]["legs"]] == ["EDSA Carousel"] or opts[0]["transfers"] <= 1
+
+
+def test_unverified_used_only_when_needed(real_router):
+    opt = real_router.plan("Cubao", "Divisoria")[0]
+    assert opt["unverified"] == ["Cubao-Divisoria Jeep"]
+    assert any(not l["verified"] for l in opt["legs"])
+
+
+def test_rail_transfer_walkways(real_router):
+    opt = real_router.plan("Katipunan", "Baclaran", preference="fewest_transfers")[0]
+    rides = [l["route"] for l in opt["legs"] if l["type"] != "Walk"]
+    assert rides == ["LRT-2", "LRT-1"]
+
+
+@pytest.mark.parametrize("alias,station", [("Cubao", "Araneta Center-Cubao"), ("MOA", "Mall of Asia"),
+                                           ("Shaw", "Shaw Boulevard"), ("NAIA", "Ninoy Aquino Avenue")])
+def test_aliases(real_router, alias, station):
+    assert real_router.resolve_place(alias) == station
 
 
 @pytest.mark.parametrize("a,b", [("Cubao", "Cubao"), ("Mars", "Divisoria"), ("Cubao", "Mars")])

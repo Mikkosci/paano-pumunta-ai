@@ -1,62 +1,119 @@
 [
   {
-    "name": "MRT-3",
-    "type": "Train",
-    "stops": [
-      "North Ave",
-      "Quezon Ave",
-      "Cubao",
-      "Shaw Blvd",
-      "Ayala",
-      "Taft Avenue"
-    ],
-    "details": "Main rapid transit line along EDSA from North Ave to Taft."
-  },
-  {
     "name": "LRT-1",
     "type": "Train",
+    "verified": true,
+    "details": "Light Rail Line 1 (Green Line): Fernando Poe Jr. (Roosevelt) to Dr. Santos via Taft Avenue, including the Cavite Extension Phase 1 stations.",
     "stops": [
-      "Monumento",
+      "Fernando Poe Jr.",
       "Balintawak",
-      "Central",
-      "Pedro Gil",
-      "Vito Cruz",
+      "Monumento",
+      "5th Avenue",
+      "R. Papa",
+      "Abad Santos",
+      "Blumentritt",
+      "Tayuman",
+      "Bambang",
+      "Doroteo Jose",
       "Carriedo",
-      "Recto",
+      "Central Terminal",
       "United Nations",
-      "Baclaran"
-    ],
-    "details": "North-South train line from Monumento to Baclaran via Taft Ave."
+      "Pedro Gil",
+      "Quirino",
+      "Vito Cruz",
+      "Gil Puyat",
+      "Libertad",
+      "EDSA",
+      "Baclaran",
+      "Redemptorist-ASEANA",
+      "MIA Road",
+      "PITX",
+      "Ninoy Aquino Avenue",
+      "Dr. Santos"
+    ]
   },
   {
     "name": "LRT-2",
     "type": "Train",
+    "verified": true,
+    "details": "Light Rail Line 2 (Purple Line): Recto to Antipolo along Recto, Magsaysay, Aurora Blvd and Marcos Highway.",
     "stops": [
       "Recto",
       "Legarda",
       "Pureza",
-      "Annapolis",
+      "V. Mapa",
+      "J. Ruiz",
+      "Gilmore",
+      "Betty Go-Belmonte",
+      "Araneta Center-Cubao",
+      "Anonas",
+      "Katipunan",
       "Santolan",
+      "Marikina-Pasig",
+      "Antipolo"
+    ]
+  },
+  {
+    "name": "MRT-3",
+    "type": "Train",
+    "verified": true,
+    "details": "Metro Rail Transit Line 3 (Yellow Line) along EDSA: North Avenue to Taft Avenue.",
+    "stops": [
+      "North Avenue",
+      "Quezon Avenue",
+      "GMA-Kamuning",
+      "Araneta Center-Cubao",
+      "Santolan-Annapolis",
       "Ortigas",
-      "Shaw Blvd",
-      "Araneta City",
-      "Cubao",
-      "Timog",
-      "Parang",
-      "Katipunan"
-    ],
-    "details": "East-West train line along Rizal Ave and MacArthur Highway."
+      "Shaw Boulevard",
+      "Boni",
+      "Guadalupe",
+      "Buendia",
+      "Ayala",
+      "Magallanes",
+      "Taft Avenue"
+    ]
+  },
+  {
+    "name": "EDSA Carousel",
+    "type": "Bus",
+    "verified": true,
+    "details": "EDSA Busway (median lane), Monumento to PITX. Stop list may change -- check DOTr/i-ACT announcements.",
+    "stops": [
+      "Monumento",
+      "Bagong Barrio",
+      "Balintawak",
+      "Kaingin Road",
+      "Roosevelt",
+      "North Avenue",
+      "Quezon Avenue",
+      "Nepa Q-Mart",
+      "Main Avenue",
+      "Santolan-Annapolis",
+      "Ortigas",
+      "Guadalupe",
+      "Buendia",
+      "One Ayala",
+      "Tramo",
+      "Taft Avenue",
+      "Roxas Boulevard",
+      "Mall of Asia",
+      "DFA",
+      "Ayala Malls Manila Bay",
+      "PITX"
+    ]
   },
   {
     "name": "Ayala-Washington Jeep",
     "type": "Jeepney",
     "stops": [
-      "MRT Ayala",
+      "Ayala",
       "Chino Roces",
       "Washington Street",
       "Gil Puyat Ave"
     ],
-    "details": "Board at the terminal near Telus/McKinley Exchange on Ayala Ave."
+    "details": "Board at the terminal near Telus/McKinley Exchange on Ayala Ave.",
+    "verified": false
   },
   {
     "name": "Megamall-Antipolo UV",
@@ -67,7 +124,8 @@
       "Robinsons Equitable",
       "Antipolo Simbahan"
     ],
-    "details": "Terminal is located at SM Megamall Building B Basement."
+    "details": "Terminal is located at SM Megamall Building B Basement.",
+    "verified": false
   },
   {
     "name": "Cubao-Divisoria Jeep",
@@ -80,46 +138,20 @@
       "Recto",
       "Divisoria"
     ],
-    "details": "Traverses Aurora Blvd all the way to Manila's shopping district."
-  },
-  {
-    "name": "EDSA Carousel North",
-    "type": "Bus",
-    "stops": [
-      "SM North EDSA",
-      "Moa",
-      "Baclaran",
-      "Rockwell",
-      "Shaw Blvd",
-      "Ortigas",
-      "Makati"
-    ],
-    "details": "Circular bus along EDSA avenue."
-  },
-  {
-    "name": "EDSA Carousel South",
-    "type": "Bus",
-    "stops": [
-      "Makati",
-      "Ortigas",
-      "Shaw Blvd",
-      "Rockwell",
-      "SM North EDSA",
-      "Moa",
-      "Baclaran"
-    ],
-    "details": "Clockwise circular route along EDSA."
+    "details": "Traverses Aurora Blvd all the way to Manila's shopping district.",
+    "verified": false
   },
   {
     "name": "Pasig-Mandaluyong UV",
     "type": "UV Express",
     "stops": [
       "Pasig Mega Market",
-      "Araneta City",
+      "Araneta Center-Cubao",
       "Ortigas Center",
       "Mandaluyong"
     ],
-    "details": "Connects Pasig to Ortigas via Shaw Boulevard."
+    "details": "Connects Pasig to Ortigas via Shaw Boulevard.",
+    "verified": false
   },
   {
     "name": "BGC-Pasay Jeep",
@@ -132,7 +164,8 @@
       "EDSA",
       "Pasay Rotonda"
     ],
-    "details": "From BGC through Makati to Pasay via Taft Avenue."
+    "details": "From BGC through Makati to Pasay via Taft Avenue.",
+    "verified": false
   },
   {
     "name": "Quezon City-Dasmariñas Jeep",
@@ -144,7 +177,8 @@
       "Kalentong",
       "Dasmariñas Village"
     ],
-    "details": "Southbound route from QC to Dasmariñas Village."
+    "details": "Southbound route from QC to Dasmariñas Village.",
+    "verified": false
   },
   {
     "name": "Ortigas-BGC UV",
@@ -155,7 +189,8 @@
       "Makati Ave",
       "BGC Underground"
     ],
-    "details": "Express UV from Ortigas to BGC via Makati Avenue."
+    "details": "Express UV from Ortigas to BGC via Makati Avenue.",
+    "verified": false
   },
   {
     "name": "Manila Zoo-Cubao Jeep",
@@ -166,9 +201,10 @@
       "Republic",
       "Santolan",
       "Ortigas",
-      "Cubao"
+      "Araneta Center-Cubao"
     ],
-    "details": "From Manila Zoo to Cubao via Santolan and Ortigas."
+    "details": "From Manila Zoo to Cubao via Santolan and Ortigas.",
+    "verified": false
   },
   {
     "name": "Taft-Ayala Jeep",
@@ -181,7 +217,8 @@
       "Gil Puyat",
       "Ayala"
     ],
-    "details": "Direct route from Taft to Ayala via Gil Puyat Avenue."
+    "details": "Direct route from Taft to Ayala via Gil Puyat Avenue.",
+    "verified": false
   },
   {
     "name": "Malinta-Cubao Jeep",
@@ -194,67 +231,85 @@
       "Kalentong",
       "Santolan",
       "Ortigas",
-      "Cubao"
+      "Araneta Center-Cubao"
     ],
-    "details": "From Malinta through QC to Cubao."
+    "details": "From Malinta through QC to Cubao.",
+    "verified": false
   },
   {
-    "name": "Walk: Cubao - Gateway Cubao",
+    "name": "Walk: Doroteo Jose - Recto",
     "type": "Walk",
+    "verified": true,
     "stops": [
-      "Cubao",
-      "Gateway Cubao"
+      "Doroteo Jose",
+      "Recto"
     ],
-    "details": "Short walk inside Araneta City / Gateway Mall."
+    "details": "Covered walkway between LRT-1 Doroteo Jose and LRT-2 Recto."
   },
   {
-    "name": "Walk: Cubao - Araneta City",
+    "name": "Walk: EDSA - Taft Avenue",
     "type": "Walk",
+    "verified": true,
     "stops": [
-      "Cubao",
-      "Araneta City"
+      "EDSA",
+      "Taft Avenue"
     ],
-    "details": "Same area -- Araneta City is beside Cubao station."
+    "details": "Walkway between LRT-1 EDSA and MRT-3 Taft Avenue (Pasay Rotonda)."
   },
   {
-    "name": "Walk: Ayala - MRT Ayala",
+    "name": "Walk: Roosevelt - Fernando Poe Jr.",
     "type": "Walk",
+    "verified": true,
     "stops": [
-      "Ayala",
-      "MRT Ayala"
+      "Roosevelt",
+      "Fernando Poe Jr."
     ],
-    "details": "Walk from MRT Ayala station to the jeep terminal."
+    "details": "EDSA Carousel Roosevelt stop to LRT-1 Fernando Poe Jr. station."
   },
   {
-    "name": "Walk: Gil Puyat - Gil Puyat Ave",
+    "name": "Walk: Main Avenue - Araneta Center-Cubao",
     "type": "Walk",
+    "verified": true,
     "stops": [
-      "Gil Puyat",
-      "Gil Puyat Ave"
+      "Main Avenue",
+      "Araneta Center-Cubao"
     ],
-    "details": "Same street, short walk."
+    "details": "Carousel Main Avenue stop to the Cubao stations."
   },
   {
-    "name": "Walk: North Ave - SM North EDSA",
+    "name": "Walk: One Ayala - Ayala",
     "type": "Walk",
+    "verified": true,
     "stops": [
-      "North Ave",
-      "SM North EDSA"
+      "One Ayala",
+      "Ayala"
     ],
-    "details": "MRT North Ave station connects to SM North EDSA."
+    "details": "One Ayala terminal connects to MRT-3 Ayala."
+  },
+  {
+    "name": "Walk: Gateway Cubao - Araneta Center-Cubao",
+    "type": "Walk",
+    "verified": true,
+    "stops": [
+      "Gateway Cubao",
+      "Araneta Center-Cubao"
+    ],
+    "details": "Through Gateway Mall to the Cubao stations."
   },
   {
     "name": "Walk: Ortigas - SM Megamall",
     "type": "Walk",
+    "verified": true,
     "stops": [
       "Ortigas",
       "SM Megamall"
     ],
-    "details": "MRT Ortigas station is beside SM Megamall."
+    "details": "MRT-3 Ortigas station beside SM Megamall."
   },
   {
     "name": "Walk: Ortigas - Ortigas Center",
     "type": "Walk",
+    "verified": true,
     "stops": [
       "Ortigas",
       "Ortigas Center"

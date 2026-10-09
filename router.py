@@ -36,6 +36,20 @@ AVOID_SYNONYMS = {
     "carousel": ["carousel"],
 }
 
+# common names people type -> station name (used only if that station exists)
+ALIASES = {
+    "cubao": "Araneta Center-Cubao", "araneta": "Araneta Center-Cubao",
+    "araneta city": "Araneta Center-Cubao", "roosevelt station": "Fernando Poe Jr.",
+    "fpj": "Fernando Poe Jr.", "kamuning": "GMA-Kamuning", "shaw": "Shaw Boulevard",
+    "moa": "Mall of Asia", "sm moa": "Mall of Asia", "sm mall of asia": "Mall of Asia",
+    "d jose": "Doroteo Jose", "dr santos": "Dr. Santos", "sucat": "Dr. Santos",
+    "naia": "Ninoy Aquino Avenue", "pasay rotonda": "EDSA", "edsa taft": "Taft Avenue",
+    "magsaysay": "Pureza", "marikina": "Marikina-Pasig", "megamall": "SM Megamall",
+    "gil puyat": "Gil Puyat", "buendia lrt": "Gil Puyat", "lawton": "Central Terminal",
+    "up": "Katipunan", "ateneo": "Katipunan", "up diliman": "Katipunan",
+    "trinoma": "North Avenue", "sm north": "North Avenue", "sm north edsa": "North Avenue",
+}
+
 _ABBREV = [(r"\bavenue\b", "ave"), (r"\bboulevard\b", "blvd"), (r"\bstreet\b", "st")]
 
 
@@ -59,6 +73,7 @@ class Router:
                 self.adj[a].append((b, route))
                 self.adj[b].append((a, route))
         self._norm_nodes = {_norm(n): n for n in self.nodes}
+        self._aliases = {_norm(k): v for k, v in ALIASES.items() if v in self.adj}
 
     # ------------------------------------------------------------ places
     def resolve_place(self, name: str) -> Optional[str]:
@@ -68,6 +83,8 @@ class Router:
         q = _norm(name)
         if q in self._norm_nodes:
             return self._norm_nodes[q]
+        if q in self._aliases:
+            return self._aliases[q]
         # whole-word containment, e.g. "Antipolo" -> "Antipolo Simbahan"
         words = set(q.split())
         hits = [n for k, n in self._norm_nodes.items()
@@ -143,7 +160,8 @@ class Router:
         return False
 
     def find_path(self, origin: str, dest: str, preference: str = "fastest",
-                  avoid: Optional[List[str]] = None) -> Optional[Dict]:
+                  avoid: Optional[List[str]] = None,
+                  include_unverified: bool = True) -> Optional[Dict]:
         """Best single itinerary for one preference, or None."""
         o, d = self.resolve_place(origin), self.resolve_place(dest)
         if not o or not d or o == d:
@@ -151,7 +169,7 @@ class Router:
 
         def cost(mins, hops, boards):
             if preference == "fewest_stops":
-                return (hops, boards, mins)
+                return (hops + 2 * boards, boards, mins)
             if preference == "fewest_transfers":
                 return (boards, mins, hops)
             return (mins, boards, hops)
@@ -171,6 +189,8 @@ class Router:
                 break
             for nxt, route in self.adj[stop]:
                 if self._avoided(route, avoid):
+                    continue
+                if not include_unverified and route.get("verified") is False:
                     continue
                 is_walk = route["type"] == "Walk"
                 switching = route["name"] != rname
@@ -213,6 +233,9 @@ class Router:
             leg["to"] = leg["stops"][-1]
         rides = [l for l in legs if l["type"] != "Walk"]
         transfers = max(len(rides) - 1, 0)
+        unverified = sorted({route["name"] for _, _, route in edges if route.get("verified") is False})
+        for leg in legs:
+            leg["verified"] = leg["route"] not in unverified
         return {
             "origin": origin,
             "destination": dest,
@@ -221,6 +244,7 @@ class Router:
             "transfers": transfers,
             "mins": sum(l["mins"] for l in legs) + transfers * TRANSFER_MINS,
             "modes": [],
+            "unverified": unverified,
         }
 
     def plan(self, origin: str, dest: str, avoid: Optional[List[str]] = None,
@@ -231,8 +255,10 @@ class Router:
         is given, the option that wins it comes first.
         """
         options: List[Dict] = []
+        # verified data (rail, walk links) first; unverified jeep/UV routes only if needed
+        verified_ok = self.find_path(origin, dest, "fastest", avoid, include_unverified=False)
         for pref in PREFERENCES:
-            it = self.find_path(origin, dest, pref, avoid)
+            it = self.find_path(origin, dest, pref, avoid, include_unverified=not verified_ok)
             if not it:
                 continue
             sig = [(l["route"], tuple(l["stops"])) for l in it["legs"]]

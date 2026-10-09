@@ -22,6 +22,20 @@ fares, it tells you to ask the driver or check the operator.
    Taglish. A faithfulness check (route names + transfer count) discards it if
    the model invents anything; the deterministic template is used instead.
 
+## Coverage
+
+| Line | Stations | Status |
+|---|---|---|
+| LRT-1 | 25 (Fernando Poe Jr. to Dr. Santos, incl. Cavite Extension Phase 1) | verified station order |
+| LRT-2 | 13 (Recto to Antipolo) | verified station order |
+| MRT-3 | 13 (North Avenue to Taft Avenue) | verified station order |
+| EDSA Carousel | 21 (Monumento to PITX) | stop list may change |
+| Jeepney / UV Express | starter set | **unverified** -- used only when no verified route exists, flagged in the UI |
+
+Rail transfers are modelled as walk links: Doroteo Jose-Recto, EDSA-Taft Avenue,
+and the shared Araneta Center-Cubao node (LRT-2/MRT-3). Common names like
+"Cubao", "MOA", "NAIA", "Shaw", "UP" resolve to the right station.
+
 ## What runs locally
 
 Everything: parsing, routing, the LLM (LM Studio on localhost), and
@@ -32,7 +46,7 @@ internet. No external images, fonts, or CDNs.
 
 ```
 pip install -r requirements.txt
-streamlit run app.py
+python -m streamlit run app.py
 ```
 
 Optional: start LM Studio's local server (default port 1234) with Gemma-2-2b
@@ -42,19 +56,20 @@ parsing and template answers.
 ## Test
 
 ```
-python test_router.py
+python -m pytest test_router.py -q
 python test_app.py    # simulated LM Studio -- no server needed
 ```
 
 ## Add routes
 
 Append to `routes.json` and reuse existing stop names so transfers connect.
-Never add fare fields.
+Set `"verified": false` for routes you have not confirmed. Link nearby stops with
+`{"name": "Walk: A - B", "type": "Walk", "stops": ["A", "B"]}`. Never add fare fields.
 
 ## Limitations (be upfront in the demo)
 
-- Starter dataset: train station order is real; jeepney and UV routes are
-  simplified and need verification before real-world use.
+- Rail station order is real; jeepney and UV routes are a small unverified
+  starter set and need checking before real-world use.
 - Times are rough estimates, not schedules. No live traffic.
 - No fare information, by design.
-- Routes are treated as two-way in the graph.
+- Routes are treated as two-way in the graph (one-way jeep loops are not modelled).

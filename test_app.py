@@ -35,7 +35,7 @@ with patch("llm.requests.post", return_value=FakeResp(GOOD_JSON)):
     out = interpret("paano pumunta galing cubao hanggang divisoria, kaunting lipat", R)
 check("interpret ok", out["status"] == "ok")
 check("origin/destination resolved",
-      out["result"]["origin"] == "Cubao" and out["result"]["destination"] == "Divisoria")
+      out["result"]["origin"] == R.resolve_place("Cubao") and out["result"]["destination"] == "Divisoria")
 check("preference kept", out["result"]["preference"] == "fewest_transfers")
 check("raw output preserved", out["raw"] == GOOD_JSON)
 
