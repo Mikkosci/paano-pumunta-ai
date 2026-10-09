@@ -1,352 +1,302 @@
-"""
-Router module for Paano Pumunta AI
-Uses Dijkstra's algorithm for finding optimal routes
-"""
+"""Deterministic router for Paano Pumunta AI.
 
-import json
+Dijkstra over (stop, route) states so transfers are counted correctly.
+This is the ONLY component that chooses routes. No fares anywhere.
+"""
+import difflib
 import heapq
-from typing import List, Dict, Optional, Tuple, Any
-from collections import defaultdict
+import json
+import re
+from typing import Any, Dict, List, Optional
+
+PREFERENCES = ("fastest", "fewest_stops", "fewest_transfers")
+
+MODE_LABELS = {
+    "fastest": "Pinakamabilis",
+    "fewest_stops": "Pinakakaunting hinto",
+    "fewest_transfers": "Pinakakaunting lipat",
+}
+
+# rough minutes per hop by vehicle type -- estimates, not schedules
+MINS_PER_HOP = {"Train": 3, "Bus": 4, "Jeepney": 5, "UV Express": 5, "Walk": 5}
+DEFAULT_MINS_PER_HOP = 5
+TRANSFER_MINS = 5
+
+TYPE_ICON = {"Train": "🚆", "Bus": "🚌", "Jeepney": "🚙", "UV Express": "🚐", "Walk": "🚶"}
+
+# words users type -> what they match in a route's name or type
+AVOID_SYNONYMS = {
+    "train": ["train"],
+    "tren": ["train"],
+    "jeep": ["jeep"],
+    "jeepney": ["jeep"],
+    "dyip": ["jeep"],
+    "uv": ["uv"],
+    "bus": ["bus"],
+    "carousel": ["carousel"],
+}
+
+_ABBREV = [(r"\bavenue\b", "ave"), (r"\bboulevard\b", "blvd"), (r"\bstreet\b", "st")]
+
+
+def _norm(text: str) -> str:
+    t = text.lower().strip()
+    t = re.sub(r"[^\w\s&-]", " ", t)
+    for pat, rep in _ABBREV:
+        t = re.sub(pat, rep, t)
+    return re.sub(r"\s+", " ", t).strip()
 
 
 class Router:
-    """Transit router using Dijkstra's algorithm"""
-    
     def __init__(self, routes_data: List[Dict]):
         self.routes = routes_data
-        self.graph = self._build_graph()
-        self.nodes = self._extract_nodes()
-        self.node_aliases = self._build_aliases()
-        
-    def _build_graph(self) -> Dict[str, Dict[str, Dict]]:
-        """Build adjacency list graph from routes"""
-        graph = defaultdict(dict)
-        
+        self.nodes = sorted({s for r in self.routes for s in r["stops"]})
+        # stop -> list of (neighbor, route dict); keeps every parallel route
+        self.adj: Dict[str, List[tuple]] = {n: [] for n in self.nodes}
         for route in self.routes:
             stops = route["stops"]
-            route_name = route["name"]
-            route_type = route["type"]
-            
-            for i in range(len(stops) - 1):
-                stop1 = stops[i]
-                stop2 = stops[i + 1]
-                
-                # Add forward direction
-                if stop2 not in graph[stop1]:
-                    graph[stop1][stop2] = {
-                        "route": route_name,
-                        "type": route_type,
-                        "stops": [stop1, stop2],
-                        "hops": 1,
-                        "details": f"via {route_name}"
-                    }
-                else:
-                    # Keep the first encountered route
-                    pass
-                
-                # Add reverse direction
-                if stop1 not in graph[stop2]:
-                    graph[stop2][stop1] = {
-                        "route": route_name,
-                        "type": route_type,
-                        "stops": [stop2, stop1],
-                        "hops": 1,
-                        "details": f"via {route_name} (reverse)"
-                    }
-        
-        return dict(graph)
-    
-    def _extract_nodes(self) -> List[str]:
-        """Extract all unique stops from routes"""
-        nodes = set()
-        for route in self.routes:
-            for stop in route["stops"]:
-                nodes.add(stop)
-        return sorted(list(nodes))
-    
-    def _build_aliases(self) -> Dict[str, str]:
-        """Build alias mapping for common names"""
-        aliases = {}
-        for node in self.nodes:
-            # Add lowercase version
-            aliases[node.lower()] = node
-            # Add common abbreviations
-            if "MRT" in node or "LRT" in node:
-                aliases[node.replace(" MRT", "").replace(" LRT", "").lower()] = node
-        return aliases
-    
-    def find_node(self, name: str) -> Optional[str]:
-        """Find exact or alias match for a node"""
-        if not name:
+            for a, b in zip(stops, stops[1:]):
+                self.adj[a].append((b, route))
+                self.adj[b].append((a, route))
+        self._norm_nodes = {_norm(n): n for n in self.nodes}
+
+    # ------------------------------------------------------------ places
+    def resolve_place(self, name: str) -> Optional[str]:
+        """Map free text to a known stop, tolerating case, abbreviations and typos."""
+        if not name or not name.strip():
             return None
-        
-        name_lower = name.lower().strip()
-        
-        # Exact match
-        if name in self.nodes:
-            return name
-        
-        # Alias match
-        if name_lower in self.node_aliases:
-            return self.node_aliases[name_lower]
-        
-        # Partial match
-        for node in self.nodes:
-            if name_lower in node.lower() or node.lower() in name_lower:
-                return node
-        
-        return None
-    
+        q = _norm(name)
+        if q in self._norm_nodes:
+            return self._norm_nodes[q]
+        # whole-word containment, e.g. "Antipolo" -> "Antipolo Simbahan"
+        words = set(q.split())
+        hits = [n for k, n in self._norm_nodes.items()
+                if re.search(r"\b" + re.escape(k) + r"\b", q)
+                or (words and words <= set(k.split()))]
+        if hits:
+            return min(hits, key=len)
+        close = difflib.get_close_matches(q, list(self._norm_nodes), n=1, cutoff=0.8)
+        return self._norm_nodes[close[0]] if close else None
+
+    find_node = resolve_place  # backwards-compatible name
+
+    # ------------------------------------------------------------ rules parser
     def parse_query(self, query: str) -> Dict[str, Any]:
-        """Parse user query into structured format"""
-        query_lower = query.lower()
-        
-        result = {
-            "origin": None,
-            "dest": None,
-            "line": None,
-            "preference": None,
-            "avoid": None
-        }
-        
-        # Check for line queries
-        line_keywords = ["mrt", "lrt", "jeep", "uv", "bus", "halinan"]
-        for keyword in line_keywords:
-            if keyword in query_lower:
-                result["line"] = keyword.upper()
+        """Rules-based fallback parser. Returns origin, dest, line, preference, avoid."""
+        ql = query.lower()
+        result = {"origin": None, "dest": None, "line": None, "preference": None, "avoid": []}
+
+        m = re.search(r"\b(?:galing(?:\s+sa)?|mula(?:\s+sa)?|from)\s+(.+?)\s+"
+                      r"(?:hanggang(?:\s+sa)?|papuntang|papunta(?:\s+sa)?|to)\s+(.+)", query, re.I)
+        if not m:
+            m = re.search(r"(.+?)\s+(?:to|hanggang|papuntang|papunta(?:\s+sa)?)\s+(.+)", query, re.I)
+        if m:
+            result["origin"] = self._resolve_fragment(m.group(1))
+            result["dest"] = self._resolve_fragment(m.group(2))
+
+        for route in self.routes:
+            if route["type"] != "Walk" and route["name"].lower() in ql:
+                result["line"] = route["name"]
                 break
-        
-        # Extract origin and destination
-        # Look for "galing" (from) and "hanggang"/"to" (to)
-        if "galing" in query_lower:
-            parts = query.split("galing")
-            if len(parts) > 1:
-                origin_part = parts[1].split("hanggang")[0].split("to")[0].strip()
-                dest_part = parts[1].split("hanggang")[-1].split("to")[-1].strip() if "hanggang" in query_lower else ""
-                
-                result["origin"] = self.find_node(origin_part)
-                if dest_part:
-                    result["dest"] = self.find_node(dest_part)
-        
-        # Try direct extraction
-        if not result["origin"] or not result["dest"]:
-            # Split by common separators
-            separators = ["to", "hanggang", "punta", "papunta"]
-            for sep in separators:
-                if sep in query_lower:
-                    parts = query.split(sep)
-                    if len(parts) >= 2:
-                        if not result["origin"]:
-                            result["origin"] = self.find_node(parts[0].strip())
-                        if not result["dest"]:
-                            result["dest"] = self.find_node(parts[1].strip())
-        
-        # Check for preferences
-        if "diretso" in query_lower or "direct" in query_lower:
-            result["preference"] = "direct"
-        elif "less" in query_lower or "kaunti" in query_lower:
+        else:
+            for kw in ("mrt", "lrt", "jeep", "uv", "bus"):
+                if re.search(r"\b" + kw, ql):
+                    result["line"] = kw.upper()
+                    break
+
+        if re.search(r"\b(diretso|direkta|direktso|direct|kaunting lipat|less transfers?)\b", ql):
+            result["preference"] = "fewest_transfers"
+        elif re.search(r"\b(kaunting hinto|fewer stops|less stops)\b", ql):
             result["preference"] = "fewest_stops"
-        
-        # Check for avoidances
-        if "iwas" in query_lower or "avoid" in query_lower:
-            if "mrt" in query_lower or "train" in query_lower:
-                result["avoid"] = "train"
-            elif "jeep" in query_lower:
-                result["avoid"] = "jeep"
-            elif "uv" in query_lower:
-                result["avoid"] = "uv"
-        
+        elif re.search(r"\b(mabilis|mabilisan|fastest|quick)\b", ql):
+            result["preference"] = "fastest"
+
+        m = re.search(r"\b(?:iwas|iwasan|walang|avoid|no|ayaw ng)\s+(\w[\w-]*)", ql)
+        if m:
+            result["avoid"] = [m.group(1)]
+            # "walang jeep" is a constraint, not a question about the jeep line
+            if result["line"] and result["line"].lower() in m.group(1):
+                result["line"] = None
         return result
-    
-    def plan(self, origin: str, dest: str, preference: str = None) -> List[Dict]:
-        """Find optimal routes using Dijkstra's algorithm"""
-        origin_node = self.find_node(origin)
-        dest_node = self.find_node(dest)
-        
-        if not origin_node or not dest_node:
-            return []
-        
-        if origin_node == dest_node:
-            return []
-        
-        # Dijkstra's algorithm
-        distances = {node: float('inf') for node in self.nodes}
-        distances[origin_node] = 0
-        previous = {node: None for node in self.nodes}
-        visited = set()
-        pq = [(0, origin_node)]
-        
+
+    def _resolve_fragment(self, text: str) -> Optional[str]:
+        text = re.split(r"[?,.!]| na | iwas | pero | kung ", text)[0]
+        words = text.split()
+        # try longest trailing / leading sub-phrases so filler words don't break matching
+        for size in range(len(words), 0, -1):
+            for start in range(0, len(words) - size + 1):
+                hit = self.resolve_place(" ".join(words[start:start + size]))
+                if hit:
+                    return hit
+        return None
+
+    # ------------------------------------------------------------ routing
+    def _avoided(self, route: Dict, avoid: List[str]) -> bool:
+        if route["type"] == "Walk":
+            return False
+        hay = (route["name"] + " " + route["type"]).lower()
+        for term in avoid or []:
+            t = term.lower().strip()
+            for needle in AVOID_SYNONYMS.get(t, [t]):
+                if needle and needle in hay:
+                    return True
+        return False
+
+    def find_path(self, origin: str, dest: str, preference: str = "fastest",
+                  avoid: Optional[List[str]] = None) -> Optional[Dict]:
+        """Best single itinerary for one preference, or None."""
+        o, d = self.resolve_place(origin), self.resolve_place(dest)
+        if not o or not d or o == d:
+            return None
+
+        def cost(mins, hops, boards):
+            if preference == "fewest_stops":
+                return (hops, boards, mins)
+            if preference == "fewest_transfers":
+                return (boards, mins, hops)
+            return (mins, boards, hops)
+
+        start = (o, None)
+        best = {start: cost(0, 0, 0)}
+        prev: Dict[tuple, tuple] = {}
+        pq = [(best[start], 0, 0, 0, o, None)]
+        counter = 0
+        goal = None
         while pq:
-            current_dist, current_node = heapq.heappop(pq)
-            
-            if current_node in visited:
+            c, mins, hops, boards, stop, rname = heapq.heappop(pq)
+            if c > best.get((stop, rname), c):
                 continue
-            visited.add(current_node)
-            
-            if current_node == dest_node:
+            if stop == d:
+                goal = (stop, rname)
                 break
-            
-            for neighbor, info in self.graph.get(current_node, {}).items():
-                if neighbor in visited:
+            for nxt, route in self.adj[stop]:
+                if self._avoided(route, avoid):
                     continue
-                
-                # Calculate distance (number of stops)
-                edge_weight = info["hops"]
-                new_dist = current_dist + edge_weight
-                
-                if new_dist < distances[neighbor]:
-                    distances[neighbor] = new_dist
-                    previous[neighbor] = {
-                        "from": current_node,
-                        "route": info["route"],
-                        "type": info["type"],
-                        "details": info["details"]
-                    }
-                    heapq.heappush(pq, (new_dist, neighbor))
-        
-        # Reconstruct path
-        if distances[dest_node] == float('inf'):
-            return []
-        
-        path = []
-        current = dest_node
-        while current != origin_node:
-            prev_info = previous[current]
-            path.append({
-                "from": prev_info["from"],
-                "to": current,
-                "route": prev_info["route"],
-                "type": prev_info["type"],
-                "details": prev_info["details"]
-            })
-            current = prev_info["from"]
-        
-        path.reverse()
-        
-        # Convert to itinerary format
-        itinerary = self._convert_to_itinerary(path, origin_node, dest_node)
-        
-        # Apply preference
-        if preference == "fewest_stops":
-            itinerary.sort(key=lambda x: sum(len(leg["stops"]) for leg in x["legs"]))
-        elif preference == "direct":
-            itinerary.sort(key=lambda x: x["transfers"])
-        
-        return itinerary
-    
-    def _convert_to_itinerary(self, path: List[Dict], origin: str, dest: str) -> List[Dict]:
-        """Convert path to itinerary format"""
-        if not path:
-            return []
-        
-        # Group consecutive stops by route
+                is_walk = route["type"] == "Walk"
+                switching = route["name"] != rname
+                step = MINS_PER_HOP.get(route["type"], DEFAULT_MINS_PER_HOP)
+                if switching and boards > 0 and not is_walk:
+                    step += TRANSFER_MINS
+                nb = boards + (1 if switching and not is_walk else 0)
+                nh = hops + (0 if is_walk else 1)
+                nm = mins + step
+                nc = cost(nm, nh, nb)
+                key = (nxt, route["name"])
+                if nc < best.get(key, (float("inf"),)):
+                    best[key] = nc
+                    prev[key] = ((stop, rname), route)
+                    counter += 1
+                    heapq.heappush(pq, (nc, nm, nh, nb, nxt, route["name"]))
+        if goal is None:
+            return None
+
+        edges = []
+        cur = goal
+        while cur in prev:
+            parent, route = prev[cur]
+            edges.append((parent[0], cur[0], route))
+            cur = parent
+        edges.reverse()
+        return self._to_itinerary(edges, o, d)
+
+    def _to_itinerary(self, edges, origin, dest) -> Dict:
         legs = []
-        current_route = None
-        current_leg_stops = []
-        
-        for step in path:
-            if step["route"] != current_route:
-                # Save previous leg
-                if current_leg_stops:
-                    legs.append({
-                        "type": current_route_type,
-                        "route": current_route,
-                        "stops": current_leg_stops,
-                        "hops": len(current_leg_stops) - 1,
-                        "details": step["details"],
-                        "to": step["to"] if len(path) > path.index(step) + 1 else dest
-                    })
-                
-                # Start new leg
-                current_route = step["route"]
-                current_route_type = step["type"]
-                current_leg_stops = [step["from"]]
-            
-            current_leg_stops.append(step["to"])
-        
-        # Add last leg
-        if current_leg_stops:
-            legs.append({
-                "type": current_route_type,
-                "route": current_route,
-                "stops": current_leg_stops,
-                "hops": len(current_leg_stops) - 1,
-                "details": path[-1]["details"] if path else "",
-                "to": dest
-            })
-        
-        # Calculate totals
-        total_mins = sum(leg["hops"] * 3 for leg in legs)  # Rough estimate: 3 min per stop
-        total_transfers = len(legs) - 1
-        
-        modes = list(set(leg["type"] for leg in legs))
-        
-        return [{
-            "modes": modes,
-            "legs": legs,
+        for a, b, route in edges:
+            if legs and legs[-1]["route"] == route["name"]:
+                legs[-1]["stops"].append(b)
+            else:
+                legs.append({"type": route["type"], "route": route["name"],
+                             "stops": [a, b], "details": route.get("details", "")})
+        for leg in legs:
+            leg["hops"] = len(leg["stops"]) - 1
+            leg["mins"] = leg["hops"] * MINS_PER_HOP.get(leg["type"], DEFAULT_MINS_PER_HOP)
+            leg["to"] = leg["stops"][-1]
+        rides = [l for l in legs if l["type"] != "Walk"]
+        transfers = max(len(rides) - 1, 0)
+        return {
             "origin": origin,
             "destination": dest,
-            "mins": total_mins,
-            "transfers": total_transfers,
-            "fare": 0  # No fare info
-        }]
-    
+            "legs": legs,
+            "stops": sum(l["hops"] for l in rides),
+            "transfers": transfers,
+            "mins": sum(l["mins"] for l in legs) + transfers * TRANSFER_MINS,
+            "modes": [],
+        }
+
+    def plan(self, origin: str, dest: str, avoid: Optional[List[str]] = None,
+             preference: Optional[str] = None) -> List[Dict]:
+        """Distinct best itineraries for each preference.
+
+        Each option's "modes" lists the preferences it wins. If `preference`
+        is given, the option that wins it comes first.
+        """
+        options: List[Dict] = []
+        for pref in PREFERENCES:
+            it = self.find_path(origin, dest, pref, avoid)
+            if not it:
+                continue
+            sig = [(l["route"], tuple(l["stops"])) for l in it["legs"]]
+            same = next((o for o in options
+                         if [(l["route"], tuple(l["stops"])) for l in o["legs"]] == sig), None)
+            if same:
+                same["modes"].append(pref)
+            else:
+                it["modes"] = [pref]
+                options.append(it)
+        if preference in PREFERENCES:
+            options.sort(key=lambda o: preference not in o["modes"])
+        return options
+
+    # ------------------------------------------------------------ lines
     def line_info(self, line_name: str) -> Optional[Dict]:
-        """Get information about a specific transit line"""
-        line_name_lower = line_name.lower()
-        
-        for route in self.routes:
-            if line_name_lower in route["name"].lower() or line_name_lower in route["type"].lower():
-                return route
-        
+        if not line_name:
+            return None
+        q = line_name.lower()
+        rides = [r for r in self.routes if r["type"] != "Walk"]
+        for r in rides:
+            if r["name"].lower() == q:
+                return r
+        for r in rides:
+            if q in r["name"].lower() or q in r["type"].lower():
+                return r
         return None
 
 
 def load_data(filepath: str) -> List[Dict]:
-    """Load route data from JSON file"""
     try:
         with open(filepath, "r", encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
         print(f"Error: File {filepath} not found")
-        return []
-    except json.JSONDecodeError:
-        print(f"Error: Invalid JSON in {filepath}")
-        return []
+    except json.JSONDecodeError as e:
+        print(f"Error: Invalid JSON in {filepath}: {e}")
+    return []
 
 
 def describe_itinerary(origin: str, dest: str, itinerary: Dict) -> str:
-    """Describe an itinerary in plain text"""
-    if not itinerary or "legs" not in itinerary:
+    """Deterministic Taglish description. Never mentions fares."""
+    if not itinerary or not itinerary.get("legs"):
         return "Walang makitang ruta."
-    
-    lines = []
-    lines.append(f" mula {origin} papuntang {dest}:")
-    
-    for i, leg in enumerate(itinerary["legs"], 1):
-        mode_icon = {"Train": "🚆", "Jeepney": "🚌", "UV Express": "🚐", "Walk": "🚶"}.get(leg["type"], "🚏")
-        lines.append(f"\n{i}. {mode_icon} {leg['type']} - {leg['route']}")
-        lines.append(f"   Hinto: {' → '.join(leg['stops'])}")
-        lines.append(f"   Detalye: {leg['details']}")
-        
-        if i < len(itinerary["legs"]):
-            next_leg = itinerary["legs"][i]
-            lines.append(f"   🔄 Lipat sa: {next_leg['to']}")
-    
-    lines.append(f"\nKabuuang oras: ~{itinerary['mins']} minutos")
-    lines.append(f"Kabuuang lipat: {itinerary['transfers']}")
-    
+    lines = [f"Mula {origin} papuntang {dest}:"]
+    legs = itinerary["legs"]
+    for i, leg in enumerate(legs, 1):
+        icon = TYPE_ICON.get(leg["type"], "🚏")
+        if leg["type"] == "Walk":
+            lines.append(f"{i}. {icon} Maglakad mula {leg['stops'][0]} papuntang {leg['to']}.")
+        else:
+            lines.append(f"{i}. {icon} Sumakay ng {leg['route']} ({leg['type']}) mula "
+                         f"{leg['stops'][0]} hanggang {leg['to']} -- {leg['hops']} hinto, "
+                         f"~{leg['mins']} min.")
+        if i < len(legs) and leg["type"] != "Walk":
+            nxt = legs[i]["type"]
+            lines.append(f"   🔄 Lipat sa {leg['to']}." if nxt != "Walk" else f"   ⬇️ Bumaba sa {leg['to']}.")
+    lines.append(f"Kabuuan: ~{itinerary['mins']} min (rough estimate), "
+                 f"{itinerary['stops']} hinto, {itinerary['transfers']} lipat.")
     return "\n".join(lines)
 
 
 def describe_plan(origin: str, dest: str, options: List[Dict]) -> str:
-    """Describe multiple route options"""
     if not options:
         return "Walang natagpuang ruta."
-    
-    lines = []
-    for i, opt in enumerate(options[:3], 1):  # Show top 3 options
-        lines.append(f"\n【Opsyon {i}】")
-        lines.append(describe_itinerary(origin, dest, opt))
-    
-    return "\n".join(lines)
+    return "\n\n".join(f"【Opsyon {i}】\n" + describe_itinerary(origin, dest, opt)
+                       for i, opt in enumerate(options[:3], 1))

@@ -7,6 +7,7 @@ is the only thing that does that.
 Interpreter protocol: a SINGLE user message, no system role.
 """
 import json
+import re
 
 import requests
 
@@ -132,8 +133,8 @@ def phrase_itinerary(facts, url=DEFAULT_URL, model=DEFAULT_MODEL, timeout=TIMEOU
               "Never add routes, stops or times. Keep every place name exactly. "
               "Never mention fares or prices -- this app does not include fare information. "
               "Say that times are rough estimates.")
-    body = {"messages": [{"role": "system", "content": system},
-                         {"role": "user", "content": "ITINERARY:\n" + facts}],
+    # Gemma's chat template rejects the "system" role, so send one user message
+    body = {"messages": [{"role": "user", "content": system + "\n\nITINERARY:\n" + facts}],
             "temperature": 0.3, "max_tokens": 300}
     if model.strip():
         body["model"] = model.strip()
@@ -146,10 +147,16 @@ def phrase_itinerary(facts, url=DEFAULT_URL, model=DEFAULT_MODEL, timeout=TIMEOU
         return None
 
 
+def _squash(s):
+    """Lowercase and drop spacing/punctuation so "Cubao - Divisoria" == "Cubao-Divisoria"."""
+    return re.sub(r"[\W_]+", "", s.lower())
+
+
 def phrasing_is_faithful(text, itinerary):
     """The rephrase must name every ride's route and mention transfers."""
     t = text.lower()
-    if not all(l["route"].lower() in t for l in itinerary["legs"] if l["type"] != "Walk"):
+    st = _squash(text)
+    if not all(_squash(l["route"]) in st for l in itinerary["legs"] if l["type"] != "Walk"):
         return False
     if itinerary["transfers"] > 0 and "lipat" not in t and "transfer" not in t:
         return False

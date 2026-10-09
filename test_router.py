@@ -1,226 +1,195 @@
-"""
-Tests for router module
-"""
+"""Tests for router.py. Run: python -m pytest test_router.py -q"""
+import json
 
 import pytest
-import json
-import os
-from router import Router, load_data, describe_itinerary
+
+from router import MODE_LABELS, PREFERENCES, Router, describe_itinerary, describe_plan, load_data
 
 
 @pytest.fixture
 def sample_routes():
-    """Sample routes for testing"""
     return [
-        {
-            "name": "MRT-3",
-            "type": "Train",
-            "stops": ["North Ave", "Quezon Ave", "Cubao", "Shaw Blvd", "Ayala", "Taft Avenue"],
-            "details": "Main rapid transit line along EDSA."
-        },
-        {
-            "name": "Ayala-Washington Jeep",
-            "type": "Jeepney",
-            "stops": ["MRT Ayala", "Chino Roces", "Washington Street", "Gil Puyat Ave"],
-            "details": "Board at the terminal near Telus/McKinley Exchange on Ayala Ave."
-        },
-        {
-            "name": "Cubao-Divisoria Jeep",
-            "type": "Jeepney",
-            "stops": ["Gateway Cubao", "Aurora Blvd", "Stop & Shop", "Legarda", "Recto", "Divisoria"],
-            "details": "Traverses Aurora Blvd all the way to Manila's shopping district."
-        }
+        {"name": "MRT-3", "type": "Train",
+         "stops": ["North Ave", "Quezon Ave", "Cubao", "Shaw Blvd", "Ayala", "Taft Avenue"],
+         "details": "Main rapid transit line along EDSA."},
+        {"name": "Ayala-Washington Jeep", "type": "Jeepney",
+         "stops": ["MRT Ayala", "Chino Roces", "Washington Street", "Gil Puyat Ave"],
+         "details": "Board near Ayala Ave."},
+        {"name": "Cubao-Divisoria Jeep", "type": "Jeepney",
+         "stops": ["Gateway Cubao", "Aurora Blvd", "Stop & Shop", "Legarda", "Recto", "Divisoria"],
+         "details": "Aurora Blvd to Divisoria."},
+        {"name": "Walk: Cubao - Gateway Cubao", "type": "Walk",
+         "stops": ["Cubao", "Gateway Cubao"], "details": "Short walk."},
+        {"name": "Walk: Ayala - MRT Ayala", "type": "Walk",
+         "stops": ["Ayala", "MRT Ayala"], "details": "Short walk."},
     ]
 
 
 @pytest.fixture
 def router(sample_routes):
-    """Create router instance"""
     return Router(sample_routes)
 
 
-class TestRouterInitialization:
-    """Test router initialization"""
-    
-    def test_load_data(self, sample_routes):
-        """Test loading data from JSON"""
-        # Create temporary file
-        with open("test_routes.json", "w") as f:
-            json.dump(sample_routes, f)
-        
-        data = load_data("test_routes.json")
-        assert len(data) == 3
-        assert data[0]["name"] == "MRT-3"
-        
-        # Cleanup
-        os.remove("test_routes.json")
-    
-    def test_load_data_file_not_found(self):
-        """Test loading non-existent file"""
-        data = load_data("nonexistent.json")
-        assert data == []
-    
-    def test_build_graph(self, router):
-        """Test graph building"""
-        assert len(router.graph) > 0
-        assert "North Ave" in router.graph
-        assert "Cubao" in router.graph
-    
-    def test_extract_nodes(self, router):
-        """Test node extraction"""
-        assert len(router.nodes) > 0
-        assert "North Ave" in router.nodes
-        assert "Cubao" in router.nodes
-        assert "Divisoria" in router.nodes
-    
-    def test_build_aliases(self, router):
-        """Test alias building"""
-        assert len(router.node_aliases) > 0
-        assert "north ave" in router.node_aliases
-        assert router.node_aliases["north ave"] == "North Ave"
+@pytest.fixture
+def real_router():
+    return Router(load_data("routes.json"))
 
 
-class TestQueryParsing:
-    """Test query parsing"""
-    
-    def test_parse_simple_query(self, router):
-        """Test parsing simple query"""
-        query = "Paano pumunta galing Cubao hanggang Divisoria?"
-        result = router.parse_query(query)
-        
-        assert result["origin"] == "Cubao"
-        assert result["dest"] == "Divisoria"
-    
-    def test_parse_with_to(self, router):
-        """Test parsing with 'to'"""
-        query = "How to get from Ayala to Shaw?"
-        result = router.parse_query(query)
-        
-        assert result["origin"] == "Ayala"
-        assert result["dest"] == "Shaw Blvd"
-    
-    def test_parse_incomplete_query(self, router):
-        """Test parsing incomplete query"""
-        query = "Paano pumunta?"
-        result = router.parse_query(query)
-        
-        assert result["origin"] is None
-        assert result["dest"] is None
-    
-    def test_parse_preference(self, router):
-        """Test parsing preference"""
-        query = "Paano pumunta galing Cubao hanggang Divisoria na direktso?"
-        result = router.parse_query(query)
-        
-        assert result["preference"] == "direct"
-    
-    def test_parse_avoid(self, router):
-        """Test parsing avoidance"""
-        query = "Paano pumunta galing Cubao hanggang Divisoria iwas jeep?"
-        result = router.parse_query(query)
-        
-        assert result["avoid"] == "jeep"
+# ---------------------------------------------------------------- data
+def test_load_data(tmp_path, sample_routes):
+    p = tmp_path / "r.json"
+    p.write_text(json.dumps(sample_routes))
+    data = load_data(str(p))
+    assert len(data) == len(sample_routes) and data[0]["name"] == "MRT-3"
 
 
-class TestRouting:
-    """Test routing functionality"""
-    
-    def test_plan_basic_route(self, router):
-        """Test basic route planning"""
-        options = router.plan("Cubao", "Divisoria")
-        
-        assert len(options) > 0
-        assert "legs" in options[0]
-        assert len(options[0]["legs"]) > 0
-    
-    def test_plan_same_origin_dest(self, router):
-        """Test planning same origin and destination"""
-        options = router.plan("Cubao", "Cubao")
-        
-        assert options == []
-    
-    def test_plan_unknown_origin(self, router):
-        """Test planning with unknown origin"""
-        options = router.plan("Unknown Place", "Divisoria")
-        
-        assert options == []
-    
-    def test_plan_unknown_dest(self, router):
-        """Test planning with unknown destination"""
-        options = router.plan("Cubao", "Unknown Place")
-        
-        assert options == []
-    
-    def test_plan_multiple_options(self, router):
-        """Test getting multiple route options"""
-        options = router.plan("North Ave", "Divisoria")
-        
-        assert len(options) >= 1
-    
-    def test_preference_fewest_stops(self, router):
-        """Test fewest stops preference"""
-        options = router.plan("North Ave", "Divisoria", preference="fewest_stops")
-        
-        # Should return at least one option
-        assert len(options) > 0
-    
-    def test_preference_direct(self, router):
-        """Test direct preference"""
-        options = router.plan("Cubao", "Divisoria", preference="direct")
-        
-        # Should prefer fewer transfers
-        assert len(options) > 0
+def test_load_data_missing():
+    assert load_data("nonexistent.json") == []
 
 
-class TestLineInfo:
-    """Test line information retrieval"""
-    
-    def test_get_mrt_info(self, router):
-        """Test getting MRT information"""
-        info = router.line_info("MRT-3")
-        
-        assert info is not None
-        assert info["name"] == "MRT-3"
-        assert len(info["stops"]) > 0
-    
-    def test_get_jeepp_info(self, router):
-        """Test getting Jeepney information"""
-        info = router.line_info("Ayala-Washington")
-        
-        assert info is not None
-        assert info["type"] == "Jeepney"
-    
-    def test_get_nonexistent_line(self, router):
-        """Test getting non-existent line"""
-        info = router.line_info("NonExistent Line")
-        
-        assert info is None
+def test_nodes(router):
+    assert {"North Ave", "Cubao", "Divisoria"} <= set(router.nodes)
 
 
-class TestDescription:
-    """Test itinerary description"""
-    
-    def test_describe_itinerary(self, router):
-        """Test describing an itinerary"""
-        options = router.plan("Cubao", "Divisoria")
-        
-        if options:
-            description = describe_itinerary("Cubao", "Divisoria", options[0])
-            
-            assert isinstance(description, str)
-            assert len(description) > 0
-            assert "Cubao" in description
-            assert "Divisoria" in description
-    
-    def test_describe_plan(self, router):
-        """Test describing multiple plans"""
-        options = router.plan("North Ave", "Divisoria")
-        
-        if options:
-            description = describe_plan("North Ave", "Divisoria", options)
-            
-            assert isinstance(description, str)
-            assert len(description) > 0
+def test_real_data_has_no_fares():
+    for r in load_data("routes.json"):
+        assert not any("fare" in k.lower() or "price" in k.lower() for k in r)
+
+
+def test_mode_labels_cover_preferences():
+    assert set(MODE_LABELS) == set(PREFERENCES)
+
+
+# ---------------------------------------------------------------- places
+@pytest.mark.parametrize("text,expected", [
+    ("Cubao", "Cubao"), ("cubao", "Cubao"), ("North Avenue", "North Ave"),
+    ("Divisoriaa", "Divisoria"), ("Washington", "Washington Street"),
+])
+def test_resolve_place(router, text, expected):
+    assert router.resolve_place(text) == expected
+
+
+@pytest.mark.parametrize("text", ["Mars", "", "how", "  "])
+def test_resolve_place_unknown(router, text):
+    assert router.resolve_place(text) is None
+
+
+# ---------------------------------------------------------------- parser
+def test_parse_galing_hanggang(router):
+    q = router.parse_query("Paano pumunta galing Cubao hanggang Divisoria?")
+    assert (q["origin"], q["dest"]) == ("Cubao", "Divisoria")
+
+
+def test_parse_with_to(router):
+    q = router.parse_query("How to get from Ayala to Shaw?")
+    assert (q["origin"], q["dest"]) == ("Ayala", "Shaw Blvd")
+
+
+def test_parse_incomplete(router):
+    q = router.parse_query("Paano pumunta?")
+    assert q["origin"] is None and q["dest"] is None
+
+
+@pytest.mark.parametrize("word", ["diretso", "direktso", "direct"])
+def test_parse_preference(router, word):
+    q = router.parse_query(f"Paano pumunta galing Cubao hanggang Divisoria na {word}?")
+    assert q["preference"] == "fewest_transfers"
+    assert q["dest"] == "Divisoria"
+
+
+def test_parse_avoid(router):
+    q = router.parse_query("Paano pumunta galing Cubao hanggang Divisoria iwas jeep?")
+    assert q["avoid"] == ["jeep"]
+
+
+def test_avoid_is_not_a_line_query(router):
+    q = router.parse_query("paano kung walang jeep?")
+    assert q["avoid"] == ["jeep"] and q["line"] is None
+
+
+def test_parse_line(router):
+    assert router.parse_query("Anong mga hinto ng MRT-3?")["line"] == "MRT-3"
+
+
+# ---------------------------------------------------------------- routing
+def test_plan_basic(router):
+    opts = router.plan("Cubao", "Divisoria")
+    assert opts and opts[0]["legs"]
+    assert opts[0]["legs"][0]["type"] == "Walk"
+    assert opts[0]["transfers"] == 0
+
+
+def test_plan_with_transfer(router):
+    opts = router.plan("North Ave", "Divisoria")
+    best = opts[0]
+    assert [l["route"] for l in best["legs"] if l["type"] != "Walk"] == \
+        ["MRT-3", "Cubao-Divisoria Jeep"]
+    assert best["transfers"] == 1
+    assert best["legs"][0]["to"] == "Cubao"
+
+
+def test_option_shape(router):
+    opt = router.plan("North Ave", "Washington")[0]
+    for k in ("legs", "mins", "stops", "transfers", "modes", "origin", "destination"):
+        assert k in opt
+    for leg in opt["legs"]:
+        for k in ("type", "route", "stops", "hops", "mins", "details", "to"):
+            assert k in leg
+    assert "fare" not in opt
+
+
+def test_every_preference_is_assigned(router):
+    opts = router.plan("North Ave", "Divisoria")
+    assert sorted(m for o in opts for m in o["modes"]) == sorted(PREFERENCES)
+
+
+def test_preference_moves_option_first(real_router):
+    opts = real_router.plan("Cubao", "Divisoria", preference="fewest_stops")
+    assert "fewest_stops" in opts[0]["modes"]
+
+
+def test_avoid(router):
+    assert router.plan("North Ave", "Divisoria", avoid=["jeep"]) == []
+    assert router.plan("North Ave", "Ayala", avoid=["MRT"]) == []
+    assert router.plan("North Ave", "Ayala", avoid=["jeep"])
+
+
+def test_parallel_routes_kept(real_router):
+    # Carousel North and South share edges; the graph must keep both
+    routes = {r["name"] for _, r in real_router.adj["Shaw Blvd"]}
+    assert {"EDSA Carousel North", "EDSA Carousel South"} <= routes
+
+
+@pytest.mark.parametrize("a,b", [("Cubao", "Cubao"), ("Mars", "Divisoria"), ("Cubao", "Mars")])
+def test_plan_invalid(router, a, b):
+    assert router.plan(a, b) == []
+
+
+@pytest.mark.parametrize("a,b", [("Cubao", "Divisoria"), ("Ayala", "Washington"),
+                                 ("North Avenue", "Antipolo"), ("Cubao", "Baclaran")])
+def test_quick_buttons_have_routes(real_router, a, b):
+    assert real_router.plan(a, b)
+
+
+# ---------------------------------------------------------------- lines
+def test_line_info(router):
+    assert router.line_info("MRT-3")["name"] == "MRT-3"
+    assert router.line_info("Ayala-Washington")["type"] == "Jeepney"
+    assert router.line_info("NonExistent Line") is None
+    assert router.line_info("Walk") is None
+
+
+# ---------------------------------------------------------------- text
+def test_describe_itinerary(router):
+    opt = router.plan("North Ave", "Divisoria")[0]
+    txt = describe_itinerary("North Ave", "Divisoria", opt)
+    assert "North Ave" in txt and "Divisoria" in txt and "MRT-3" in txt and "lipat" in txt.lower()
+    assert "₱" not in txt and "peso" not in txt.lower()
+
+
+def test_describe_plan(router):
+    txt = describe_plan("North Ave", "Divisoria", router.plan("North Ave", "Divisoria"))
+    assert "Opsyon 1" in txt
 
 
 if __name__ == "__main__":

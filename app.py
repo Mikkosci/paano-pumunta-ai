@@ -202,14 +202,21 @@ def answer(prompt):
         dest = dest or ss.last_trip["destination"]
 
     # rules-based parser fills whatever the model missed
+    q = router.parse_query(prompt)
     if not origin or not dest:
-        q = router.parse_query(prompt)
         if q["line"] and not (q["origin"] and q["dest"]) and not origin and not dest:
             r = router.line_info(q["line"])
-            stops = ", ".join(r["stops"])
-            return f"Ito ang mga hinto ng {r['name']}: {stops}.", {"line": r}, interp
+            if r:
+                stops = ", ".join(r["stops"])
+                return f"Ito ang mga hinto ng {r['name']}: {stops}.", {"line": r}, interp
         origin = origin or q["origin"]
         dest = dest or q["dest"]
+    if not result:
+        preference = q["preference"] or preference
+        avoid = q["avoid"]
+        # rules-only follow-up: "paano kung walang MRT?" with no places named
+        if not origin and not dest and (q["avoid"] or q["preference"]) and ss.last_trip:
+            origin, dest = ss.last_trip["origin"], ss.last_trip["destination"]
 
     fare_q = contains_fare_question(prompt)
 
@@ -229,9 +236,9 @@ def answer(prompt):
     if origin == dest:
         return "Pareho ang pinanggalingan at pupuntahan. Nandiyan ka na! 😄", None, interp
 
-    options = router.plan(origin, dest, avoid=avoid)
+    options = router.plan(origin, dest, avoid=avoid, preference=preference)
     if not options:
-        extra = " kahit walang ipinagbabawal na sakay" if avoid else ""
+        extra = f" nang hindi sumasakay ng {', '.join(avoid)}" if avoid else ""
         return (f"Walang ruta sa database mula {origin} papuntang {dest}{extra}. "
                 "Dagdagan ang routes.json para sa biyaheng ito."), None, interp
 
@@ -286,7 +293,7 @@ with st.sidebar:
     st.write(f"**Answer mode:** {ss.ai_mode}")
     st.divider()
 
-    if st.button("🔄 Reset conversation", use_container_width=True):
+    if st.button("🔄 Reset conversation", width="stretch"):
         ss.messages, ss.request_count, ss.latency, ss.ai_mode = [], 0, None, "—"
         ss.recent_searches, ss.last_trip = [], None
         st.rerun()
@@ -294,7 +301,7 @@ with st.sidebar:
     history_text = "\n\n".join(f"{m['role'].title()}: {m['content']}" for m in ss.messages)
     st.download_button("📥 Export Chat History", data=history_text,
                        file_name="paano_pumunta_chat.txt", mime="text/plain",
-                       use_container_width=True, disabled=not ss.messages)
+                       width="stretch", disabled=not ss.messages)
 
     st.divider()
     with st.expander("💡 Pro Commuter Tips"):
@@ -312,7 +319,7 @@ with st.sidebar:
     if ss.recent_searches:
         for i, rec in enumerate(ss.recent_searches[-5:][::-1]):
             btn_text = rec[:30] + "..." if len(rec) > 30 else rec
-            if st.button(btn_text, key=f"rec_{i}", use_container_width=True):
+            if st.button(btn_text, key=f"rec_{i}", width="stretch"):
                 queue(rec)
                 st.rerun()
     else:
@@ -350,7 +357,7 @@ for i, msg in enumerate(ss.messages):
                                 {opt['transfers']} lipat
                             </div>""", unsafe_allow_html=True)
                 for opt in payload["options"]:
-                    render_itinerary(payload["origin"], payload["dest"], opt)
+                    render_itinerary(payload["origin"], payload["destination"], opt)
             if debug and debug.get("raw"):
                 with st.expander("🤖 Local AI — what the model said"):
                     st.markdown("**Raw model output:**")
@@ -362,15 +369,18 @@ for i, msg in enumerate(ss.messages):
 st.markdown("💡 **Try these quick routes:**")
 c1, c2, c3, c4 = st.columns(4)
 c1.button("Cubao → Divisoria", on_click=queue, args=("Paano pumunta galing Cubao hanggang Divisoria?",),
-          use_container_width=True)
+          width="stretch")
 c2.button("Ayala → Washington", on_click=queue, args=("Paano pumunta galing Ayala to Washington?",),
-          use_container_width=True)
+          width="stretch")
 c3.button("North Ave → Antipolo", on_click=queue, args=("Paano pumunta galing North Avenue hanggang Antipolo?",),
-          use_container_width=True)
-c4.button("MRT-3 Stops", on_click=queue, args=("Anong mga hinto ng MRT-3?",), use_container_width=True)
+          width="stretch")
+c4.button("MRT-3 Stops", on_click=queue, args=("Anong mga hinto ng MRT-3?",), width="stretch")
 
 typed = st.chat_input("Saan ka pupunta? (e.g., Paano pumunta galing Cubao hanggang Divisoria?)")
 prompt = typed or ss.pop("queued", None)
+if typed:
+    queue(typed)
+    ss.pop("queued", None)
 
 if prompt:
     t0 = time.time()
