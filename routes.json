@@ -1,0 +1,92 @@
+[
+  {
+    "name": "MRT-3",
+    "type": "Train",
+    "stops": ["North Ave", "Quezon Ave", "Cubao", "Shaw Blvd", "Ayala", "Taft Avenue"],
+    "details": "Main rapid transit line along EDSA from North Ave to Taft."
+  },
+  {
+    "name": "LRT-1",
+    "type": "Train",
+    "stops": ["Monumento", "Balintawak", "Central", "Pedro Gil", "Vito Cruz", "Carriedo", "Recto", "United Nations", "Baclaran"],
+    "details": "North-South train line from Monumento to Baclaran via Taft Ave."
+  },
+  {
+    "name": "LRT-2",
+    "type": "Train",
+    "stops": ["Recto", "Legarda", "Pureza", "Annapolis", "Santolan", "Ortigas", "Shaw Blvd", "Araneta City", "Cubao", "Timog", "Parang", "Katipunan"],
+    "details": "East-West train line along Rizal Ave and MacArthur Highway."
+  },
+  {
+    "name": "Ayala-Washington Jeep",
+    "type": "Jeepney",
+    "stops": ["MRT Ayala", "Chino Roces", "Washington Street", "Gil Puyat Ave"],
+    "details": "Board at the terminal near Telus/McKinley Exchange on Ayala Ave."
+  },
+  {
+    "name": "Megamall-Antipolo UV",
+    "type": "UV Express",
+    "stops": ["SM Megamall", "Ortigas Extension", "Robinsons Equitable", "Antipolo Simbahan"],
+    "details": "Terminal is located at SM Megamall Building B Basement."
+  },
+  {
+    "name": "Cubao-Divisoria Jeep",
+    "type": "Jeepney",
+    "stops": ["Gateway Cubao", "Aurora Blvd", "Stop & Shop", "Legarda", "Recto", "Divisoria"],
+    "details": "Traverses Aurora Blvd all the way to Manila's shopping district."
+  },
+  {
+    "name": "EDSA Carousel North",
+    "type": "Bus",
+    "stops": ["SM North EDSA", "Moa", "Baclaran", "Rockwell", "Shaw Blvd", "Ortigas", "Makati"],
+    "details": "Circular bus along EDSA avenue."
+  },
+  {
+    "name": "EDSA Carousel South",
+    "type": "Bus",
+    "stops": ["Makati", "Ortigas", "Shaw Blvd", "Rockwell", "SM North EDSA", "Moa", "Baclaran"],
+    "details": "Clockwise circular route along EDSA."
+  },
+  {
+    "name": "Pasig-Mandaluyong UV",
+    "type": "UV Express",
+    "stops": ["Pasig Mega Market", "Araneta City", "Ortigas Center", "Mandaluyong"],
+    "details": "Connects Pasig to Ortigas via Shaw Boulevard."
+  },
+  {
+    "name": "BGC-Pasay Jeep",
+    "type": "Jeepney",
+    "stops": ["BGC Underground", "Magallanes", "Makati Ave", "Taft Ave", "EDSA", "Pasay Rotonda"],
+    "details": "From BGC through Makati to Pasay via Taft Avenue."
+  },
+  {
+    "name": "Quezon City-Dasmariñas Jeep",
+    "type": "Jeepney",
+    "stops": ["QC Circle", "Timog", "Parang", "Kalentong", "Dasmariñas Village"],
+    "details": "Southbound route from QC to Dasmariñas Village."
+  },
+  {
+    "name": "Ortigas-BGC UV",
+    "type": "UV Express",
+    "stops": ["Ortigas Center", "Robinsons Galleria", "Makati Ave", "BGC Underground"],
+    "details": "Express UV from Ortigas to BGC via Makati Avenue."
+  },
+  {
+    "name": "Manila Zoo-Cubao Jeep",
+    "type": "Jeepney",
+    "stops": ["Manila Zoo", "Quiapo", "Republic", "Santolan", "Ortigas", "Cubao"],
+    "details": "From Manila Zoo to Cubao via Santolan and Ortigas."
+  },
+  {
+    "name": "Taft-Ayala Jeep",
+    "type": "Jeepney",
+    "stops": ["Taft Avenue", "Pedro Gil", "Vito Cruz", "United Nations", "Gil Puyat", "Ayala"],
+    "details": "Direct route from Taft to Ayala via Gil Puyat Avenue."
+  },
+  {
+    "name": "Malinta-Cubao Jeep",
+    "type": "Jeepney",
+    "stops": ["Malinta", "QC Circle", "Timog", "Parang", "Kalentong", "Santolan", "Ortigas", "Cubao"],
+    "details": "From Malinta through QC to Cubao."
+  }
+]
