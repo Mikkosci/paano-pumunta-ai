@@ -263,9 +263,13 @@ class Router:
 
 
 def load_data(filepath: str) -> List[Dict]:
+    """Load routes. Accepts a list of routes or a {"routes": [...]} object."""
     try:
         with open(filepath, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+        if isinstance(data, dict):
+            data = data.get("routes", [])
+        return [r for r in data if isinstance(r, dict) and r.get("stops")]
     except FileNotFoundError:
         print(f"Error: File {filepath} not found")
     except json.JSONDecodeError as e:

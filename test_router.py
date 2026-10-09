@@ -43,6 +43,12 @@ def test_load_data(tmp_path, sample_routes):
     assert len(data) == len(sample_routes) and data[0]["name"] == "MRT-3"
 
 
+def test_load_data_dict_format(tmp_path, sample_routes):
+    p = tmp_path / "r.json"
+    p.write_text(json.dumps({"routes": sample_routes}))
+    assert len(load_data(str(p))) == len(sample_routes)
+
+
 def test_load_data_missing():
     assert load_data("nonexistent.json") == []
 
