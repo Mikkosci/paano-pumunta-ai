@@ -17,7 +17,10 @@ import streamlit.components.v1 as components
 from llm import (DEFAULT_MODEL, DEFAULT_URL, FARE_DISCLAIMER,
                  contains_fare_question, interpret, phrase_itinerary,
                  phrasing_is_faithful)
-from router import MODE_LABELS, Router, describe_itinerary, load_data
+import router as _router_module
+from router import Router, describe_itinerary, load_data
+
+MODE_LABELS = getattr(_router_module, "MODE_LABELS", {})
 
 st.set_page_config(page_title="Paano Pumunta AI", page_icon="📍", layout="wide")
 
@@ -81,6 +84,16 @@ def get_router():
 
 
 router = get_router()
+
+_REQUIRED = ("resolve_place", "find_path", "plan", "parse_query", "line_info")
+_probe = router.plan(router.nodes[0], router.nodes[-1]) if len(router.nodes) > 1 else []
+if (not all(hasattr(router, a) for a in _REQUIRED)
+        or any("stops" not in o or "modes" not in o for o in _probe)):
+    st.cache_resource.clear()
+    st.error("Outdated router.py loaded from: " + _router_module.__file__ + "\n\n"
+             "Replace it with the router.py that matches this app.py, delete the "
+             "__pycache__ folder, then stop Streamlit (Ctrl+C) and run it again.")
+    st.stop()
 
 TYPE_ICON = {"Train": "🚆", "Jeepney": "🚌", "UV Express": "🚐", "Walk": "🚶"}
 TYPE_CLASS = {"Walk": "walk", "Jeepney": "jeep", "UV Express": "uv"}
@@ -340,7 +353,8 @@ for i, msg in enumerate(ss.messages):
         st.markdown(msg["content"])
         payload = msg.get("payload")
         debug = msg.get("debug")
-        if msg["role"] == "assistant" and payload and i == last_idx:
+        stale = payload and any("stops" not in o for o in payload.get("options", []))
+        if msg["role"] == "assistant" and payload and not stale and i == last_idx:
             if "line" in payload:
                 render_line(payload["line"])
             else:
