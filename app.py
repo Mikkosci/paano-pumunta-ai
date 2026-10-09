@@ -16,8 +16,8 @@ import streamlit.components.v1 as components
 
 import router as _router_module
 from llm import (DEFAULT_MODEL, DEFAULT_URL, FARE_DISCLAIMER,
-                 contains_fare_question, interpret, phrase_itinerary,
-                 phrasing_is_faithful)
+                 contains_fare_question, faithfulness_problem, interpret,
+                 phrase_itinerary)
 from router import Router, describe_itinerary, load_data
 
 MODE_LABELS = getattr(_router_module, "MODE_LABELS", {})
@@ -271,12 +271,17 @@ def answer(prompt, forced=None):
     facts = describe_itinerary(origin, dest, best)
 
     text, mode = facts, "Template (deterministic)"
+    debug = dict(interp) if interp else {}
     if use_llm:
         out = phrase_itinerary(facts, llm_url, llm_model)
-        if out and phrasing_is_faithful(out, best):
+        problem = faithfulness_problem(out, best) if out else None
+        debug.update(phrase=out, phrase_problem=problem)
+        if out and problem is None:
             text, mode = out, "Local AI phrasing (LM Studio)"
+        elif out:
+            mode = f"Template (AI rephrase rejected: {problem})"
         else:
-            mode = "Template (AI unavailable or unverified)"
+            mode = "Template (LM Studio unavailable)"
     if fare_q:
         text += "\n\n" + FARE_DISCLAIMER
 
@@ -285,7 +290,7 @@ def answer(prompt, forced=None):
     ss.last_trip = {"origin": origin, "destination": dest}
     payload = {"origin": origin, "destination": dest, "options": options,
                "best": best, "preference": preference, "facts": facts}
-    return text, payload, interp
+    return text, payload, debug or None
 
 
 # ---------------------------------------------------------------- sidebar
@@ -374,10 +379,17 @@ with tab_trip:
                 for opt in opts:
                     render_itinerary(opt)
                 st.caption("⏱️ Rough estimates only -- no live traffic or schedules.")
-            if debug and debug.get("raw"):
+            if debug and (debug.get("raw") or debug.get("phrase")):
                 with st.expander("🤖 Local AI -- what the model said"):
-                    st.code(debug["raw"], language="json")
-                    st.json(debug["result"] or {"status": debug["status"]})
+                    if debug.get("raw"):
+                        st.caption("1. Understanding your message (Gemma on this device)")
+                        st.code(debug["raw"], language="json")
+                        st.json(debug.get("result") or {"status": debug.get("status")})
+                    if debug.get("phrase"):
+                        problem = debug.get("phrase_problem")
+                        st.caption("2. Rephrased answer -- " + ("shown above" if problem is None else
+                                   f"rejected ({problem}), deterministic template shown instead"))
+                        st.write(debug["phrase"])
 
     if ss.messages and ss.messages[-1]["role"] == "assistant":
         a1, a2, a3 = st.columns(3)

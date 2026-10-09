@@ -6,8 +6,8 @@ from unittest.mock import patch
 
 import requests
 
-from llm import (contains_fare_question, interpret, phrase_itinerary,
-                 phrasing_is_faithful)
+from llm import (contains_fare_question, faithfulness_problem, interpret,
+                 phrase_itinerary, phrasing_is_faithful)
 from router import Router, describe_itinerary, load_data
 
 R = Router(load_data("routes.json"))
@@ -129,6 +129,13 @@ check("faithful with transfer word",
       phrasing_is_faithful(names + " may 1 lipat dito.", it2))
 check("unfaithful without transfer word",
       not phrasing_is_faithful(names + " mabilis na biyahe.", it2))
+
+check("faithful without vehicle suffix",
+      phrasing_is_faithful("Sumakay ng jeep na Cubao-Divisoria papuntang Divisoria.", it))
+check("unfaithful when a fare is stated",
+      faithfulness_problem("Sakay Cubao-Divisoria Jeep, ₱13 lang.", it) == "mentioned a fare")
+check("problem names the missing route",
+      faithfulness_problem("Masarap ang biyahe.", it).startswith("left out"))
 
 # 12. phrase_itinerary returns text / None on failure
 with patch("llm.requests.post", return_value=FakeResp("Ayos na biyahe!")):
